@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>System Lock</title>
+  <style>
+    :root {
+      --bg-color: #0d0f17;
+      --card-bg: rgba(255, 255, 255, 0.07);
+      --accent-color: #6366f1;
+      --error-color: #ef4444;
+      --text-color: #ffffff;
+      --text-dim: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* Mobile Frame */
+    .phone-container {
+      width: 360px;
+      height: 740px;
+      background: #000;
+      border-radius: 40px;
+      border: 12px solid #222533;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Phone Notch/Camera */
+    .camera-notch {
+      width: 120px;
+      height: 24px;
+      background: #222533;
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      border-bottom-left-radius: 14px;
+      border-bottom-right-radius: 14px;
+      z-index: 100;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 35px;
+      padding: 10px 20px 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #fff;
+      z-index: 90;
+    }
+
+    /* Screens */
+    .screen {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      position: relative;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* Locked Screen */
+    .clock-widget {
+      margin-top: 40px;
+      text-align: center;
+    }
+
+    .clock-time {
+      font-size: 54px;
+      font-weight: 300;
+      letter-spacing: -1px;
+    }
+
+    .clock-date {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-top: -5px;
+    }
+
+    .lock-hint {
+      margin-top: 30px;
+      font-size: 13px;
+      color: var(--text-dim);
+      height: 18px;
+    }
+
+    .lock-hint.error {
+      color: var(--error-color);
+      animation: shake 0.3s ease-in-out;
+    }
+
+    .pattern-container {
+      margin-top: auto;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    canvas {
+      touch-action: none;
+    }
+
+    /* Unlocked Screen */
+    .home-header {
+      width: 100%;
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-top: 40px;
+      width: 100%;
+    }
+
+    .app-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .app-box {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: var(--card-bg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 22px;
+      margin-bottom: 6px;
+      backdrop-filter: blur(10px);
+      transition: transform 0.1s;
+    }
+
+    .app-box:active {
+      transform: scale(0.92);
+    }
+
+    .app-label {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* Notification Popup */
+    .notification {
+      position: absolute;
+      top: 45px;
+      left: 12px;
+      right: 12px;
+      background: rgba(30, 34, 48, 0.92);
+      backdrop-filter: blur(16px);
+      border-radius: 16px;
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      transform: translateY(-150%);
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 200;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .notification.show {
+      transform: translateY(0);
+    }
+
+    .avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f43f5e, #fb7185);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      color: white;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .notif-content {
+      flex: 1;
+    }
+
+    .notif-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    .notif-sender {
+      font-weight: 600;
+      color: var(--text-color);
+      font-size: 13px;
+    }
+
+    .notif-body {
+      font-size: 13px;
+      line-height: 1.4;
+      color: #e2e8f0;
+    }
+
+    /* Interactive Overlay Modal */
+    .modal {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 300;
+      text-align: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-btn {
+      margin-top: 20px;
+      padding: 8px 20px;
+      background: var(--accent-color);
+      border: none;
+      border-radius: 20px;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="phone-container">
+    <div class="camera-notch"></div>
+    
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span id="status-time">12:00</span>
+      <span>📶 100%</span>
+    </div>
+
+    <!-- Notification Overlay -->
+    <div class="notification" id="notification">
+      <div class="avatar">L</div>
+      <div class="notif-content">
+        <div class="notif-header">
+          <span class="notif-sender">Liam</span>
+          <span>Just now</span>
+        </div>
+        <div class="notif-body">
+          Meet me at boys entrance. Ill talk to you there nearby window.
+        </div>
+      </div>
+    </div>
+
+    <!-- Locked Screen -->
+    <div class="screen active" id="locked-screen">
+      <div class="clock-widget">
+        <div class="clock-time" id="lock-time">12:00</div>
+        <div class="clock-date" id="lock-date">Tuesday, August 4</div>
+      </div>
+
+      <div class="lock-hint" id="lock-hint">Draw pattern to unlock</div>
+
+      <div class="pattern-container">
+        <canvas id="patternCanvas" width="280" height="280"></canvas>
+      </div>
+    </div>
+
+    <!-- Unlocked Screen -->
+    <div class="screen" id="unlocked-screen">
+      <div class="home-header">
+        <div class="clock-time" id="home-time" style="font-size: 38px;">12:00</div>
+      </div>
+
+      <div class="app-grid">
+        <div class="app-icon" onclick="openApp('Messages')">
+          <div class="app-box">💬</div>
+          <span class="app-label">Messages</span>
+        </div>
+        <div class="app-icon" onclick="openApp('Photos')">
+          <div class="app-box">🖼️</div>
+          <span class="app-label">Photos</span>
+        </div>
+        <div class="app-icon" onclick="openApp('Settings')">
+          <div class="app-box">⚙️</div>
+          <span class="app-label">Settings</span>
+        </div>
+        <div class="app-icon" onclick="openApp('Notes')">
+          <div class="app-box">📝</div>
+          <span class="app-label">Notes</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Modal -->
+    <div class="modal" id="app-modal">
+      <h3 id="modal-title">App</h3>
+      <p id="modal-desc" style="margin-top: 10px; font-size: 13px; color: #94a3b8;">Access restricted.</p>
+      <button class="modal-btn" onclick="closeApp()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // --- Clock Setup ---
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const timeStr = `${hours}:${minutes}`;
+      
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      const dateStr = now.toLocaleDateString('en-US', options);
+
+      document.getElementById('status-time').textContent = timeStr;
+      document.getElementById('lock-time').textContent = timeStr;
+      document.getElementById('home-time').textContent = timeStr;
+      document.getElementById('lock-date').textContent = dateStr;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // --- URL Routing & Spoofing Engine ---
+    function checkRoute() {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      
+      // Handles both real path "/unlocked" and hash "#unlocked" for static hosts
+      if (path.endsWith('/unlocked') || hash === '#unlocked') {
+        showUnlockedScreen();
+      } else {
+        showLockedScreen();
+      }
+    }
+
+    function showLockedScreen() {
+      document.getElementById('locked-screen').classList.add('active');
+      document.getElementById('unlocked-screen').classList.remove('active');
+      document.getElementById('notification').classList.remove('show');
+    }
+
+    function showUnlockedScreen() {
+      document.getElementById('locked-screen').classList.remove('active');
+      document.getElementById('unlocked-screen').classList.add('active');
+      
+      // Trigger notification after unlock transition
+      setTimeout(() => {
+        document.getElementById('notification').classList.add('show');
+      }, 500);
+    }
+
+    window.addEventListener('popstate', checkRoute);
+    window.addEventListener('load', checkRoute);
+
+    // --- Pattern Lock Canvas Logic ---
+    const canvas = document.getElementById('patternCanvas');
+    const ctx = canvas.getContext('2d');
+    const hint = document.getElementById('lock-hint');
+
+    const radius = 12;
+    const grid = 3;
+    const points = [];
+    let isDrawing = false;
+    let selectedPoints = [];
+
+    // Initialize 3x3 Grid
+    const step = canvas.width / (grid + 1);
+    for (let i = 1; i <= grid; i++) {
+      for (let j = 1; j <= grid; j++) {
+        points.push({
+          x: j * step,
+          y: i * step,
+          id: (i - 1) * grid + (j - 1)
+        });
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw Connection Lines
+      if (selectedPoints.length > 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)';
+        ctx.lineWidth = 4;
+        for (let i = 0; i < selectedPoints.length; i++) {
+          const pt = points[selectedPoints[i]];
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+      }
+
+      // Draw Nodes
+      points.forEach(pt => {
+        const isSelected = selectedPoints.includes(pt.id);
+        
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? '#6366f1' : 'rgba(255, 255, 255, 0.2)';
+        ctx.fill();
+
+        if (isSelected) {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, radius + 8, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+    }
+
+    function getTouchPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+
+    function handleStart(e) {
+      isDrawing = true;
+      selectedPoints = [];
+      hint.textContent = 'Draw pattern to unlock';
+      hint.classList.remove('error');
+      handleMove(e);
+    }
+
+    function handleMove(e) {
+      if (!isDrawing) return;
+      const pos = getTouchPos(e);
+
+      points.forEach(pt => {
+        const dist = Math.hypot(pt.x - pos.x, pt.y - pos.y);
+        if (dist < radius * 2.5 && !selectedPoints.includes(pt.id)) {
+          selectedPoints.push(pt.id);
+        }
+      });
+      draw();
+    }
+
+    function handleEnd() {
+      if (!isDrawing) return;
+      isDrawing = false;
+
+      if (selectedPoints.length > 0) {
+        // ALWAYS fail pattern lock execution
+        hint.textContent = 'Incorrect pattern';
+        hint.classList.add('error');
+        selectedPoints = [];
+        setTimeout(draw, 400);
+      }
+    }
+
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchend', handleEnd);
+
+    draw();
+
+    // --- Interactive Apps ---
+    function openApp(appName) {
+      const modal = document.getElementById('app-modal');
+      document.getElementById('modal-title').textContent = appName;
+      document.getElementById('modal-desc').textContent = `${appName} is locked by system administrator.`;
+      modal.classList.add('active');
+    }
+
+    function closeApp() {
+      document.getElementById('app-modal').classList.remove('active');
+    }
+  </script>
+</body>
+</html>
